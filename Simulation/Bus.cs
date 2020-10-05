@@ -11,28 +11,29 @@ namespace BusSim.Simulation
 
         private readonly List<Passenger> passengers = new List<Passenger>();
 
-        public void MakeStop(BusStop stop)
-        {
-            Disembark(stop);
-            Board(stop);
-        }
-
-        private void Board(BusStop stop)
+        public IEnumerable<Passenger> Embark(BusStop stop)
         {
             while (stop.Count > 0 && Count < Capacity)
             {
                 var passenger = stop.TakeFirst();
                 passengers.Add(passenger);
+
+                yield return passenger;
             }
         }
 
-        private void Disembark(BusStop stop)
+        public IEnumerable<Passenger> Disembark(BusStop stop)
         {
             int index = 0;
             while (index < passengers.Count)
             {
                 if (passengers[index].Destination == stop)
-                    passengers.RemoveAt(index);
+                {
+                    var disembarking = passengers[index];
+                    passengers.Remove(disembarking);
+
+                    yield return disembarking;
+                }
                 else
                     index++;
             }

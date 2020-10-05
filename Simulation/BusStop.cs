@@ -23,5 +23,7 @@ namespace BusSim.Simulation
 
             return passenger;
         }
+
+        public IEnumerable<Passenger> GetPassengers() => passengers.AsEnumerable();
     }
 }
