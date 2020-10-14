@@ -1,39 +1,15 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 
 namespace BusSim.Simulation
 {
-    class City
+    internal class City
     {
-        private const int passengerPatience = 20;
-        private static Random rng = new Random();
-        private List<BusStop> stops = new List<BusStop>();
-        private Bus bus;
-        /// <summary>
-        /// The normal chance for a new passenger to spawn each tick.
-        /// </summary>
-        public double BaseSpawnRate { get; }
-        /// <summary>
-        /// The actual chance for a new passenger to spawn each tick.
-        /// </summary>
-        public double SpawnRate { get; private set; }
-        /// <summary>
-        /// The distance between each bus stop.
-        /// </summary>
-        public int StopDistance { get; }
-        /// <summary>
-        /// The distance remaining to next bus stop.
-        /// </summary>
-        public int DistanceToNext { get; private set; }
-        /// <summary>
-        /// The index of the next bus stop.
-        /// </summary>
-        public int NextStopIndex { get; private set; }
-        /// <summary>
-        /// How many passengers are currently riding the bus.
-        /// </summary>
-        public int PassengersOnBus => bus.Count;
-
+        private static readonly Random rng = new Random();
+        private static int passengerPatience;
+        private readonly Bus bus;
+        private readonly List<BusStop> stops = new List<BusStop>();
 
         /// <summary>
         /// Create a new city.
@@ -46,44 +22,118 @@ namespace BusSim.Simulation
         {
             if (busCapacity <= 0) throw new ArgumentException("Must be larger than 0.", nameof(busCapacity));
             if (stopDistance <= 0) throw new ArgumentException("Must be larger than 0.", nameof(stopDistance));
-            if (baseSpawnRate < 0.0 || baseSpawnRate > 1.0) throw new ArgumentException("Must be between 0 and 1.", nameof(baseSpawnRate));
+            if (baseSpawnRate < 0.0 || baseSpawnRate > 1.0)
+                throw new ArgumentException("Must be between 0 and 1.", nameof(baseSpawnRate));
+
             if (busStops.Length < 2) throw new ArgumentException("City must have at least 2 stops.", nameof(busStops));
 
             bus = new Bus(busCapacity);
             BaseSpawnRate = baseSpawnRate;
             SpawnRate = baseSpawnRate;
             StopDistance = stopDistance;
-            foreach (string stop in busStops)
-            {
-                stops.Add(new BusStop(stop));
-            }
+            passengerPatience = StopDistance * 5;
+            foreach (string stop in busStops) stops.Add(new BusStop(stop));
 
             NextStopIndex = 1;
             DistanceToNext = StopDistance;
         }
 
         /// <summary>
+        /// The normal chance for a new passenger to spawn each tick.
+        /// </summary>
+        public double BaseSpawnRate { get; }
+
+        /// <summary>
+        /// The distance remaining to next bus stop.
+        /// </summary>
+        public int DistanceToNext { get; private set; }
+
+        public int LeftInAnger { get; private set; }
+
+        /// <summary>
+        /// The index of the next bus stop.
+        /// </summary>
+        public int NextStopIndex { get; private set; }
+
+        /// <summary>
+        /// How many passengers are currently riding the bus.
+        /// </summary>
+        public int PassengersOnBus => bus.Count;
+
+        /// <summary>
+        /// The actual chance for a new passenger to spawn each tick.
+        /// </summary>
+        public double SpawnRate { get; private set; }
+
+        public int StopCount => stops.Count;
+
+        /// <summary>
+        /// The distance between each bus stop.
+        /// </summary>
+        public int StopDistance { get; }
+
+        public IEnumerable<Passenger> Disembark()
+        {
+            IEnumerable<Passenger> disembarked = bus.Disembark(stops[NextStopIndex]);
+
+            return disembarked;
+        }
+
+        public IEnumerable<Passenger> Embark()
+        {
+            IEnumerable<Passenger> embarked = bus.Embark(stops[NextStopIndex]);
+
+            return embarked;
+        }
+
+        public ReadOnlyCollection<Passenger> GetPassengersAt(int busStopIndex)
+        {
+            return stops[busStopIndex].GetPassengers();
+        }
+
+        public IEnumerable<string> GetStopNames()
+        {
+            foreach (BusStop stop in stops) yield return stop.Name;
+        }
+
+        /// <summary>
         /// Sets spawn rate to rush hour. The rate caps at 99%.
         /// </summary>
-        public void SetRushHour() => SpawnRate = BaseSpawnRate * 2 < 0.99 ? BaseSpawnRate * 2 : 0.99;
+        public void SetHighTraffic()
+        {
+            SpawnRate = BaseSpawnRate * 2.0 < 0.99 ? BaseSpawnRate * 2.0 : 0.99;
+        }
+
         /// <summary>
         /// Sets spawn rate to low traffic.
         /// </summary>
-        public void SetLowTraffic() => SpawnRate = BaseSpawnRate / 2;
+        public void SetLowTraffic()
+        {
+            SpawnRate = BaseSpawnRate / 2.0;
+        }
+
         /// <summary>
         /// Resets spawn rate to the base value.
         /// </summary>
-        public void SetNormalTraffic() => SpawnRate = BaseSpawnRate;
-        /// <summary>
-        /// Check if a passenger should spawn.
-        /// </summary>
-        /// <returns><see langword="true"/> if passenger should spawn, otherwise <see langword="false"/></returns>
-        private bool CheckSpawn() => 1 - rng.NextDouble() <= SpawnRate;
+        public void SetNormalTraffic()
+        {
+            SpawnRate = BaseSpawnRate;
+        }
 
         public void Tick()
         {
-            if (CheckSpawn()) SpawnPassenger();
             MoveBus();
+            LeftInAnger = UpdatePassengers();
+            if (CheckSpawn()) SpawnPassenger();
+        }
+
+        /// <summary>
+        /// Check if a passenger should spawn.
+        /// </summary>
+        /// <returns><see langword="true" /> if passenger should spawn, otherwise <see langword="false" /></returns>
+        private bool CheckSpawn()
+        {
+            return 1.0 - rng.NextDouble() <= SpawnRate;
         }
 
         private void MoveBus()
@@ -91,6 +141,7 @@ namespace BusSim.Simulation
             if (DistanceToNext > 0)
             {
                 DistanceToNext--;
+
                 return;
             }
 
@@ -104,7 +155,7 @@ namespace BusSim.Simulation
             int destinationIndex = rng.Next(stops.Count);
             BusStop destination = stops[destinationIndex];
             int spawnIndex;
-            
+
             // Roll until spawn is different from destination.
             while ((spawnIndex = rng.Next(stops.Count)) == destinationIndex)
             {
@@ -114,10 +165,12 @@ namespace BusSim.Simulation
             stops[spawnIndex].Add(passenger);
         }
 
-        public IEnumerable<Passenger> Disembark() => bus.Disembark(stops[NextStopIndex]);
+        private int UpdatePassengers()
+        {
+            var leaving = 0;
+            foreach (BusStop stop in stops) leaving += stop.UpdateMood();
 
-        public IEnumerable<Passenger> Embark() => bus.Embark(stops[NextStopIndex]);
-
-        public IEnumerable<Passenger> GetPassengersAt(int busStopIndex) => stops[busStopIndex].GetPassengers();
+            return leaving;
+        }
     }
 }

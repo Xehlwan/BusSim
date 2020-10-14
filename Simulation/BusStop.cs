@@ -1,29 +1,58 @@
 ﻿using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.Linq;
 
 namespace BusSim.Simulation
 {
-    internal class BusStop
+    public class BusStop
     {
         private readonly List<Passenger> passengers = new List<Passenger>();
-        public int Count => passengers.Count;
-        public string Name { get; }
 
         public BusStop(string name)
         {
             Name = name;
         }
 
-        public void Add(Passenger passenger) => passengers.Add(passenger);
+        public int Count => passengers.Count;
+        public string Name { get; }
+
+        public void Add(Passenger passenger)
+        {
+            passengers.Add(passenger);
+        }
+
+        public ReadOnlyCollection<Passenger> GetPassengers()
+        {
+            return passengers.AsReadOnly();
+        }
 
         public Passenger TakeFirst()
         {
-            var passenger = passengers.First();
+            Passenger passenger = passengers.First();
             passengers.Remove(passenger);
 
             return passenger;
         }
 
-        public IEnumerable<Passenger> GetPassengers() => passengers.AsEnumerable();
+        public int UpdateMood()
+        {
+            var leaving = 0;
+            var index = 0;
+            while (index < passengers.Count)
+            {
+                passengers[index].TickTime();
+                if (passengers[index].Mood == Mood.Furious)
+                {
+                    leaving++;
+                    passengers.RemoveAt(index);
+                }
+                else
+                {
+                    index++;
+                }
+            }
+
+            return leaving;
+        }
     }
 }

@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Drawing;
 using System.Text;
 
@@ -10,6 +11,26 @@ namespace BusSim
         private static int screenHeight = Console.BufferHeight;
         private static int screenWidth = Console.BufferWidth;
 
+        public static void ClearArea(int left, int top, int width, int height)
+        {
+            var chArray = new char[width];
+            Array.Fill(chArray, '\uFEFF');
+
+            for (var y = 0; y < height; y++)
+            {
+                MoveCursor(left, top + y);
+                Console.Write(chArray);
+            }
+        }
+
+        public static void ClearLines(int top, int lines)
+        {
+            MoveCursor(0, top);
+            var chars = new char[lines * screenWidth];
+            Array.Fill(chars, '\uFEFF');
+            Console.Write(chars);
+        }
+
         /// <summary>
         /// Draws colored symbols to chosen area.
         /// </summary>
@@ -20,18 +41,23 @@ namespace BusSim
         /// <param name="symbols">The characters and colors to draw.</param>
         public static void DrawArea(int left, int top, int width, int height, (char ch, Color color)[] symbols)
         {
+            if (width == 0 || height == 0 || symbols.Length == 0) return;
+
             // Clamp dimensions to screen.
-            if (left + width >= screenWidth) width = screenWidth - left;
-            if (top + height >= screenHeight) height = screenHeight - height;
+            int realLeft = left >= 0 ? left : 0;
+            int realTop = top >= 0 ? top : 0;
+            int xLimit = realLeft + width < Console.BufferWidth ? width : Console.BufferWidth - realLeft;
+            int yLimit = realTop + height < Console.BufferHeight ? height : Console.BufferHeight - realTop;
 
             Color prevColor = symbols[0].color;
-            sb.Append(VtColor(prevColor));
+            Console.Write(VtColor(prevColor));
 
-            for (var y = 0; y < height; y++)
+            for (int y = realTop - top; y < yLimit; y++)
             {
                 sb.Clear();
+                var test = new List<int>();
 
-                for (var x = 0; x < width; x++)
+                for (int x = realLeft - left; x < xLimit; x++)
                 {
                     int index = y * width + x;
 
@@ -51,9 +77,32 @@ namespace BusSim
                     sb.Append(ch);
                 }
 
-                MoveCursor(left, top + y);
+                MoveCursor(realLeft, realTop + y);
                 Console.Write(sb);
             }
+        }
+
+        public static void DrawChar(int left, int top, char ch)
+        {
+            MoveCursor(left, top);
+            Console.Write(ch);
+        }
+
+        public static void DrawEmpty(int left, int top)
+        {
+            DrawChar(left, top, '\uFEFF');
+        }
+
+        public static Color GetRainbow(int phaseDegree)
+        {
+            throw new NotImplementedException();
+        }
+
+        public static void PrintMessage(int left, int top, string message, Color color)
+        {
+            MoveCursor(left, top);
+            SetColor(color);
+            Console.Write(message);
         }
 
         /// <summary>
@@ -83,9 +132,9 @@ namespace BusSim
             screenHeight = height;
         }
 
-        public static Color GetRainbow(int phaseDegree)
+        public static void SetColor(Color color)
         {
-            throw new NotImplementedException();
+            Console.Write(VtColor(color));
         }
 
         private static void MoveCursor(int left, int top)
